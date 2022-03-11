@@ -1,0 +1,29 @@
+{
+    "name": "UHC",
+    "author": "hachkingtohach1",
+    "api": "4.0.0", 
+    "version": "1.0.0_BETA",
+    "main": "hachkingtohach1\\UHC\\UHC",
+    "github": "https://github.com/hachkingtohach1/",
+    "description": "Plugin UHC for pocketmine_pmmp",   
+    "permissions":{
+        "uhc.command":{
+            "description": "Permission to use the UHC command",
+            "default": true
+        },
+        "lobby.command":{
+            "description": "Permission to use the UHC command",
+            "default": true
+        }       
+    },
+    "commands":{ 
+        "uhc":{
+            "description": "Open Menu UHC",
+            "permission": "uhc.command"
+        },
+        "lobby":{
+            "description": "Force start arena",
+            "permission": "lobby.command"
+        }
+    }
+}
