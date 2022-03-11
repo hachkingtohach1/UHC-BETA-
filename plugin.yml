@@ -22,7 +22,7 @@
             "permission": "uhc.command"
         },
         "lobby":{
-            "description": "Force start arena",
+            "description": "Return lobby",
             "permission": "lobby.command"
         }
     }
