@@ -53,7 +53,7 @@ class UHC extends PluginBase{
 	/**
 	 * @return UHC
 	 */
-    public static function getInstance(): UHC{
+    public static function getInstance(): ?UHC{
         return self::$instance;
     }
 
@@ -88,6 +88,7 @@ class UHC extends PluginBase{
 				$sender->sendMessage(TextFormat::RED."This is command for in-game!");
 				return false;
 			}
+			$sender->setGamemode($this->getServer()->getGamemode());	
 			$dataPlayer = $this->getPlayer($sender);
 			if($dataPlayer->isInGame()){
 				$dataArena = $this->arenas[$dataPlayer->getNameArena()];

@@ -49,6 +49,10 @@ class Arenas{
 	private bool $teamMode = false;
 	/*@var bool*/
 	private bool $deathMatch = false;
+	/*@var bool*/
+	private bool $border1 = false;
+	/*@var bool*/
+	private bool $border2 = false;
 	/*@var World*/
 	private ?World $world;
 	/*@var string - name of current arena*/
@@ -62,6 +66,8 @@ class Arenas{
 	/*@var array*/
 	private array $players = [];
 	/*@var array*/
+	private array $spectators = [];
+	/*@var array*/
 	private array $teams = [];
 	/*@var array*/
 	private array $spawns = [];
@@ -71,6 +77,8 @@ class Arenas{
 	private int $borderMove;
 	/*@var int*/
 	private int $humanReadableTime;	
+	/*@var int*/
+	private int $modifier;
 	/*@var array*/
 	private static $teamColors = [
 	    "black",
@@ -85,13 +93,17 @@ class Arenas{
 		"white"
 	];
 	
-	const MIN_PLAYER_COUNT = 1;
+	const MIN_PLAYER_COUNT = 2;
 	const MAX_PLAYER_COUNT = 70;
 	const MAX_PLAYER_INTEAM_COUNT = 7;
 	const MATCH_START_IN_SECONDS = 180;
 	const INVINCIBILITY_DISABLE_IN_SECONDS = 480;
-	const DEATHMATCH_START_IN_SECONDS = 1000;
-	const MATCH_FINAL_IN_SECONDS = 2000;
+	const BORDER_ONE = 500;
+	const BORDER_TWO = 900;
+	const DEATHMATCH_START_IN_SECONDS = 1500;
+	const MATCH_FINAL_IN_SECONDS = 2500;
+	
+	const MODIFIER_NORMAL = 0;
 	
 	/**
 	 * construct of UHC class, 
@@ -102,7 +114,7 @@ class Arenas{
 	 * @param string $world
 	 * @param bool $team
 	 * @param array $spawns
-	 * @param string $spawnDeathmatch
+	 * @param array $spawnDeathmatch
 	 * @param array $lobbywaiting
 	 * @param int $border
 	 */
@@ -120,6 +132,7 @@ class Arenas{
 		$this->border = $border;
 		$this->borderMove = $border;
 		$this->humanReadableTime = (int)microtime(true);
+		$this->modifier = self::MODIFIER_NORMAL;
 	}
 	
 	/**
@@ -162,6 +175,13 @@ class Arenas{
 	 */
 	public function getPlayers() :array{
 		return $this->players;
+	}
+    
+    /**
+	 * @return array
+	 */
+	public function getSpectators() :array{
+		return $this->spectators;
 	}
 	
 	/**
@@ -233,6 +253,20 @@ class Arenas{
 	}
 	
 	/**
+	 * @return int
+	 */
+	public function getModifier() :int{
+		return $this->modifier;
+	}
+	
+	/**
+	 * set modifier for arena
+	 */
+	public function setModifier(int $id){
+		return $this->modifier;
+	}
+	
+	/**
 	 * unload and load map saved
 	 */
 	public function updateMapData() :?World{	
@@ -288,7 +322,10 @@ class Arenas{
 		$this->invincible = false;
 		$this->deathMatch = false;
 		$this->started = false;
+		$this->border1 = false;
+		$this->border2 = false;
 		$this->humanReadableTime = (int)microtime(true);
+		$this->modifier = self::MODIFIER_NORMAL;
 		$this->players = [];
 		$this->kills = [];		
 		$this->setDefaultTeams();
@@ -320,7 +357,14 @@ class Arenas{
 		    $position = Vector3::fromString($this->spawns[array_rand($this->spawns, 1)]);
 			$player->teleport(Position::fromObject($position, $world));
 			//options
-			$player->getHungerManager()->setEnabled(true);			
+			$player->getHungerManager()->setEnabled(true);	
+            $player->getHungerManager()->setFood($player->getHungerManager()->getMaxFood());
+		    $player->setHealth($player->getMaxHealth());
+		    $player->getXpManager()->setXpAndProgress(0, 0.0);
+		    $player->getEffects()->clear();
+		    $player->getInventory()->clearAll();
+		    $player->getArmorInventory()->clearAll();
+		    $player->getCursorInventory()->clearAll();			
 		}
 		$this->sendStartInfo();
 		$this->started = true;
@@ -341,6 +385,31 @@ class Arenas{
 	}
 	
 	/**
+	 * Get random modifier
+	 * @return array
+	 */
+	private function getRandomModifier() :array{
+		$modifiers = [
+		    TextFormat::GREEN."Normal" => [0, "This mode will leave the UHC default normal, nothing more!"],
+			TextFormat::RED."Projectiless" => [1, "No projectiles! Hitting players with arrows, snowballs, eggs, and fishing rods is disabled in this mode. Get ready for some true hand-to-hand combat!"],
+			TextFormat::AQUA."Fast Food" => [2, "No, as good as it sounds, we did not add cheeseburgers or drive-thru's in UHC. This modifier speeds up your eating and drinking, allowing you to instantly consume any food or potions!"],
+			TextFormat::LIGHT_PURPLE."Brew Masters" => [3, "Do you want to brew potions, but don't like to kill blazes in the nether? This modifier is for you! All players start with a brewing stand, 9 glass bottles and 3 nether wart."],
+			TextFormat::AQUA."Magic Powers" => [4, "In this mode, any kill or assist that you make on a player will grant you with a random positive potion effect."],
+			TextFormat::GREEN."Flower Power" => [5, "Break any flower for a random item drop! These drops can be any item in the game, both vanilla items and custom items!"],		
+            TextFormat::RED."Sword Mastery Modifier" => [6, "When the Sword Mastery Modifier is active, your sword will get +0.2 attack damage for every player you kill with it. Every 5 kills, your sword will be upgraded to the next tier. The base tiers are the normal sword materials as you are used to. When a diamond sword gets upgraded, it becomes a Dragon sword, which becomes a Demon Sword, which becomes a God Sword to finally become a One-Punch Sword!"],
+            TextFormat::RED."Extra Health" => [7, "Everyone in the game has extra health."],	
+            TextFormat::RED."Less Health" => [8, "Everyone in the game has less health."],
+            TextFormat::GOLD."Double Heads" => [9, "Upon death, a player will drop twice the amount of heads than usual."],
+            TextFormat::LIGHT_PURPLE."Night Time" => [10, "This game plays in night time. Watch out for monsters!"],			
+		    TextFormat::LIGHT_PURPLE."Pearls" => [11, "Everyone starts out with 3 ender pearls. When a player dies, they drop an extra ender pearl."],
+		    TextFormat::RED."Health on kill" => [12, "If you kill a player, you gain a permanent heart."]
+		];
+		$random = array_rand($modifiers, 1);
+		$chooseModifier = $modifiers[$random];					
+		return [$random, $chooseModifier[0], $chooseModifier[1]];		
+	}
+	
+	/**
 	 * send scoreboard <>
 	 * first 3 minutes are countdown, 
 	 * 8 minutes playing on arena, 
@@ -354,6 +423,27 @@ class Arenas{
 		$this->updateBorder();
 		//check tick
         $tick = (int)microtime(true) - $this->getHumanReadableTime();
+		//debug tick (anti server lag)
+		if($tick > self::MATCH_START_IN_SECONDS){
+			if(!$this->isStarted()){
+				$this->start();
+			}
+		}
+		if($tick > self::INVINCIBILITY_DISABLE_IN_SECONDS){
+			if($this->isInvincible()){
+				$this->finishInvincibility();
+			}
+		}
+		if($tick > self::DEATHMATCH_START_IN_SECONDS){
+			if(!$this->isDeathMatch()){
+				$this->startDeathmatch();
+			}
+		}
+		if($tick > self::BORDER_ONE and $tick < self::BORDER_TWO){
+			if($this->getBorder() < $this->getBorderMove()){
+				$this->setBorderMove(0);
+			}
+		}
 		switch($tick){
 			case 15:
 			case 30:
@@ -378,13 +468,26 @@ class Arenas{
 			case self::MATCH_START_IN_SECONDS:
 				$this->start();
 				break;
-			case 480:
+			/*case self::MATCH_START_IN_SECONDS + 1:
+			case self::MATCH_START_IN_SECONDS + 2:
+			case self::MATCH_START_IN_SECONDS + 3:
+			case self::MATCH_START_IN_SECONDS + 4:
+			    $randomModifier = $this->getRandomModifier();
+				$this->sendTitle($randomModifier[0]);	
+			    break;
+			case self::MATCH_START_IN_SECONDS + 5:
+			    $randomModifier = $this->getRandomModifier();
+				$this->setModifier($randomModifier[0]);
+				$this->sendTitle($randomModifier[1]);	
+		        $this->broadcastMessage($randomModifier[2]);
+				break;*/
+			case self::INVINCIBILITY_DISABLE_IN_SECONDS:
 				$this->finishInvincibility();
 				break;
-			case 500:
+			case self::BORDER_ONE:
 				$this->setBorderMove(0);
 				break;
-			case 650:
+			case self::BORDER_TWO:
 				$this->setBorderMove(0);
 				break;	
 			case self::DEATHMATCH_START_IN_SECONDS - 300:
@@ -402,7 +505,7 @@ class Arenas{
 			case self::MATCH_FINAL_IN_SECONDS:
 				$this->restart();
 				break;
-		}
+		}		
 	}
 	
 	/**
@@ -420,8 +523,7 @@ class Arenas{
 		if(!$this->isDeathMatch()){
 			$time = self::DEATHMATCH_START_IN_SECONDS - ((int)microtime(true) - $this->getHumanReadableTime());
 			return [$this->getMessageLocalized("DEATHMATCH_FORMAT", [], []), gmdate("i:s", $time)];
-		}
-		if($this->isDeathMatch()){
+		}else{
 			$time = self::MATCH_FINAL_IN_SECONDS - ((int)microtime(true) - $this->getHumanReadableTime());
 			return [$this->getMessageLocalized("ENDGAME_FORMAT", [], []), gmdate("i:s", $time)];
 		}
@@ -468,7 +570,7 @@ class Arenas{
 			$player->getWorld()->addSound($player->getLocation()->asVector3(), new ClickSound(), $player->getWorld()->getPlayers());
 		}
 		$tick = (int)microtime(true) - $this->getHumanReadableTime();
-		$timeLeft = (int)(self::DEATHMATCH_START_IN_SECONDS - $tick);
+		$timeLeft = gmdate("i:s", (int)(self::DEATHMATCH_START_IN_SECONDS - $tick));
 		$this->broadcastMessageLocalized("DEATHMATCH", ["#time"], [$timeLeft]);
 	}
 	
@@ -503,8 +605,10 @@ class Arenas{
 	 */
     public function setSpectator(Player $player){
 		$this->removePlayer($player);
-        $player->setHealth(20);
-        $player->setGamemode(GameMode::SPECTATOR());		
+        $player->setGamemode(GameMode::SPECTATOR());
+        if(!isset($this->spectators[$player->getXuid()])){
+			$this->spectators[$player->getXuid()] = $player;
+		}			
 	}
 	
 	/**
@@ -520,7 +624,13 @@ class Arenas{
 		if(isset($this->players[$player->getXuid()])){
 			unset($this->players[$player->getXuid()]);
 			//clear inventory
-			$player->getInventory()->clearAll();
+			$player->getHungerManager()->setFood($player->getHungerManager()->getMaxFood());
+		    $player->setHealth($player->getMaxHealth());
+		    $player->getXpManager()->setXpAndProgress(0, 0.0);
+		    $player->getEffects()->clear();
+		    $player->getInventory()->clearAll();
+		    $player->getArmorInventory()->clearAll();
+		    $player->getCursorInventory()->clearAll();
 			$this->removeFromTeam($player);
 			$this->removeDataPlayer($player);
 			//set winner if needs
@@ -530,6 +640,9 @@ class Arenas{
 			if($leftGame){
 				$this->broadcastMessageLocalized("LEFT_GAME", ["#player"], [$player->getName()]);
 			}
+		}
+		if(isset($this->spectators[$player->getXuid()])){
+			unset($this->spectators[$player->getXuid()]);
 		}
 	}
 
@@ -569,8 +682,15 @@ class Arenas{
 	 * @param Player $player
 	 */
 	private function addDataPlayer(Player $player){
-		$player->getInventory()->clearAll();
+		$player->setGamemode(GameMode::SURVIVAL());
 		$player->getHungerManager()->setEnabled(false);	
+		$player->getHungerManager()->setFood($player->getHungerManager()->getMaxFood());
+		$player->setHealth($player->getMaxHealth());
+		$player->getXpManager()->setXpAndProgress(0, 0.0);
+		$player->getEffects()->clear();
+		$player->getInventory()->clearAll();
+		$player->getArmorInventory()->clearAll();
+		$player->getCursorInventory()->clearAll();
 		$this->updateKillsCounter($player);
 		$this->plugin->getPlayer($player)->setInGame(true);
 		$this->plugin->getPlayer($player)->setNameArena($this->getNameArena());
@@ -591,19 +711,31 @@ class Arenas{
 	
 	/**
 	 * Update border for arena
-	 * - 20% per update
+	 * - 35% per update
 	 * @param Player $player
 	 */
-	private function updateBorder(){
+	private function updateBorder() :bool{
 		if($this->getBorderMove() == 0){
-		    $calculate = (int)($this->getBorder() - ($this->getBorder() * (35/100)));
-		    $this->setBorderMove($calculate);
-			$this->broadcastMessageLocalized("BORDER_UPDATE", ["#border"], [$calculate]);
+			if(!$this->border1 or !$this->border2){
+		        $calculate = (int)($this->getBorder() - ($this->getBorder() * (35/100)));
+		        $this->setBorderMove($calculate);
+			    $this->broadcastMessageLocalized("BORDER_UPDATE", ["#border"], [$calculate]);
+			    if(!$this->border1){
+				    $this->border1 = true;
+				    return true;
+			    }
+			    if(!$this->border2){
+				    $this->border2 = true;
+					return true;
+			    }
+			}
 		}else{
 			if($this->getBorder() > $this->getBorderMove()){
 			    $this->setBorder($this->getBorder() - 2);	
-			}				
+			}	
+			return true;
 		}
+        return false;		
 	}
 	
 	/**
@@ -618,6 +750,17 @@ class Arenas{
 		}
 		$this->broadcastMessageLocalized("DEATHMATCH_START", [], []);
 		$this->deathMatch = true;
+	}
+	
+	/**
+	 * send title without translate for all players in arena
+	 * 
+	 * @param string $text
+	 */
+	public function sendTitle(string $title, string $subtitle = ""){
+		foreach($this->players as $player){
+			$player->sendTitle($title, $subtitle);
+		}
 	}
 	
 	/**
@@ -772,25 +915,43 @@ class Arenas{
 				$winners = $this->teams[$candidate];
 			}
 		}else{
-			if(count($this->players) === 2){
+			if(count($this->players) === 1){
 				foreach($this->players as $player){
 					$candidate = $player->getName();
 				}
 				$winners = $this->players;
 			}
 		}
-		if($candidate){
+		if($candidate){			
 			$winnername = ucfirst($candidate);
 			foreach($winners as $winner){
 				if($winner instanceof Player){
 					//update settings for winner
-					$winner->setHealth(20);
-					$winner->getHungerManager()->setFood(20);
+					$winner->setGamemode($this->plugin->getServer()->getGamemode());	
+					$winner->getHungerManager()->setFood($winner->getHungerManager()->getMaxFood());
+		            $winner->setHealth($winner->getMaxHealth());
+		            $winner->getXpManager()->setXpAndProgress(0, 0.0);
+		            $winner->getEffects()->clear();
+		            $winner->getInventory()->clearAll();
+		            $winner->getArmorInventory()->clearAll();
+		            $winner->getCursorInventory()->clearAll();
 					$winner->teleport($this->plugin->getServer()->getWorldManager()->getDefaultWorld()->getSpawnLocation());
 					$this->removePlayer($winner, true);
 				}
 				//messages for winners
 				// TODO
+			}
+			foreach($this->spectators as $xuid => $spectator){
+				$spectator->setGamemode($this->plugin->getServer()->getGamemode());	
+				$spectator->getHungerManager()->setFood($spectator->getHungerManager()->getMaxFood());
+		        $spectator->setHealth($spectator->getMaxHealth());
+		        $spectator->getXpManager()->setXpAndProgress(0, 0.0);
+		        $spectator->getEffects()->clear();
+		        $spectator->getInventory()->clearAll();
+		        $spectator->getArmorInventory()->clearAll();
+		        $spectator->getCursorInventory()->clearAll();
+				$spectator->teleport($this->plugin->getServer()->getWorldManager()->getDefaultWorld()->getSpawnLocation());
+				$this->removePlayer($spectator, true);
 			}
 			//and send messages to all players in lobby
 			foreach($this->plugin->getServer()->getOnlinePlayers() as $player){
